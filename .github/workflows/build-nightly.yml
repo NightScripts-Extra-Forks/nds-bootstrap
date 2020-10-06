@@ -1,4 +1,4 @@
-name: Build nds-bootstrap
+name: Build nds-bootstrap (nightly)
 
 on:
   push:
@@ -9,8 +9,6 @@ on:
     branches: ["*"]
     paths-ignore:
       - 'README.md'
-  release:
-    types: [created]
 
 jobs:
   build:
@@ -36,11 +34,7 @@ jobs:
           sudo chmod +x lzss
           sudo mv lzss /opt/devkitpro/tools/bin
       - name: Build nightly
-        if: ${{ !startsWith(github.ref, 'refs/tags') }}
         run: make package-nightly
-      - name: Build release
-        if: ${{ startsWith(github.ref, 'refs/tags') }}
-        run: make package-release
       - name: Set variables
         id: vars
         run: |
@@ -53,7 +47,6 @@ jobs:
           echo ::set-output name=commit_subject::$(git log -1 "$GITHUB_SHA" --pretty="%s")
           echo ::set-output name=commit_message::$(git log -1 "$GITHUB_SHA" --pretty="%b")
       - name: Pack 7z nightly
-        if: ${{ !startsWith(github.ref, 'refs/tags') }}
         run: |
           mkdir bin/TWiLightMenu/
           printf "${{ steps.vars.outputs.commit_hash }}\n" >> bin/TWiLightMenu/nightly-bootstrap.ver
@@ -62,17 +55,6 @@ jobs:
 
           mkdir -p ~/artifacts
           cp nds-bootstrap.7z ~/artifacts
-      - name: Pack 7z release
-        if: ${{ startsWith(github.ref, 'refs/tags') }}
-        run: |
-          printf "Release ${{ steps.vars.outputs.commit_tag }}\n" >> bin/release-bootstrap.ver
-          cd bin
-          7z a nds-bootstrap.7z .
-          7z a nds-bootstrap.zip .
-
-          mkdir -p ~/artifacts
-          cp nds-bootstrap.7z ~/artifacts
-          cp nds-bootstrap.zip ~/artifacts
       - name: Publish build to GH Actions
         uses: actions/upload-artifact@v2
         with:
@@ -97,21 +79,7 @@ jobs:
         with:
           name: build
           path: build
-      - name: Upload to ${{ github.repository }} release
-        if: ${{ startsWith(github.ref, 'refs/tags') }}
-        run: |
-          ID=$(jq --raw-output '.release.id' $GITHUB_EVENT_PATH)
-
-          for file in ${{ github.workspace }}/build/*; do
-            AUTH_HEADER="Authorization: token ${{ secrets.GITHUB_TOKEN }}"
-            CONTENT_LENGTH="Content-Length: $(stat -c%s $file)"
-            CONTENT_TYPE="Content-Type: application/7z-x-compressed"
-            UPLOAD_URL="https://uploads.github.com/repos/${{ github.repository }}/releases/$ID/assets?name=$(basename $file)"
-
-            curl -XPOST -H "$AUTH_HEADER" -H "$CONTENT_LENGTH" -H "$CONTENT_TYPE" --upload-file "$file" "$UPLOAD_URL"
-          done
       - name: Commit and push to TWLBot/Builds
-        if: ${{ !startsWith(github.ref, 'refs/tags') }}
         id: commit
         run: |
           CURRENT_DATE=$(date +"%Y%m%d-%H%M%S")
@@ -127,7 +95,6 @@ jobs:
           git tag v$CURRENT_DATE
           git push origin master v$CURRENT_DATE
       - name: Release to TWLBot/Builds
-        if: ${{ !startsWith(github.ref, 'refs/tags') }}
         run: |
           AUTH_HEADER="Authorization: token ${{ secrets.TWLBOT_TOKEN }}"
           CONTENT_TYPE="Content-Type: application/json"
